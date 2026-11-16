@@ -11,9 +11,18 @@ import {checkJavaScript,runJavaScript} from '../src/growth-grading.js';
 const origin='http://localhost:3000',password='TestGrowth2026!';
 const config={webOrigins:[origin],secureCookies:false,sessionDays:7,authLimit:1000,production:false};
 let fixture,app,admin,dev,other,company,devId,assessment,attemptId;
+let providerMode='valid';
+const originalFetch=globalThis.fetch, originalModelKey=process.env.GROQ_API_KEY;
 const write=(agent,method,path,body={})=>agent[method]('/api'+path).set('Origin',origin).send(body);
 const data=email=>({role:'developer',email,password,confirmPassword:password,firstName:'Growth',lastName:'Tester',preferredRole:'Full-Stack Developer',location:'Amman',github:''});
 const q=(id='knowledge')=>({id,type:'mcq',prompt:'Which status means created?',points:100,options:['200','201'],correctAnswer:'201',starterCode:'',rubric:'',tests:[]});
+function assertStudentSafe(value) {
+  if(!value||typeof value!=='object')return;
+  for(const [key,child] of Object.entries(value)){
+    assert.equal(['paper_questions','correctAnswer','rubric','solution','referenceAnswer','serverOnlySecret'].includes(key),false,`Student response leaked ${key}`);
+    assertStudentSafe(child);
+  }
+}
 async function passMilestoneChallenge(agent,slug){
   const a=(await write(agent,'post',`/growth/activities/${slug}/start`).expect(200)).body.attempt;
   const stored=(await fixture.pool.query('SELECT paper_questions FROM growth_attempts WHERE id=$1',[a.id])).rows[0].paper_questions;
@@ -31,6 +40,15 @@ async function createActivity(overrides={}){
 }
 before(async()=>{
   process.env.NODE_TEST_CONTEXT='1';
+  process.env.GROQ_API_KEY='integration-test-placeholder';
+  // All provider traffic in integration tests is local and deterministic.
+  globalThis.fetch=async(url,options)=>{
+    assert.equal(url,'https://api.groq.com/openai/v1/chat/completions');
+    if(providerMode==='outage')throw new Error('Simulated provider outage');
+    const payload=JSON.parse(JSON.parse(options.body).messages[1].content);
+    const result={score:providerMode==='zero'?0:100,feedback:'Automatically scored the saved answers.',questions:payload.map(question=>({id:question.id,percent:providerMode==='zero'?0:100,note:'Test provider applied the question rubric.'}))};
+    return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(result)}}]})};
+  };
   fixture=await testDatabase();await fixture.db.exec(await readFile(new URL('../database/003_developer_growth.sql',import.meta.url),'utf8'));await fixture.db.exec(growthCatalogSql());await fixture.db.exec(refreshChallengeLessonsSql());await fixture.db.exec(refreshAssessmentCatalogSql());
   await fixture.db.exec(await readFile(new URL('../database/005_exam_integrity.sql',import.meta.url),'utf8'));
   await fixture.db.exec(await readFile(new URL('../database/006_exam_bank.sql',import.meta.url),'utf8'));
@@ -45,7 +63,7 @@ before(async()=>{
   await write(company,'post','/auth/register',{role:'company',email:'growthcompany@example.com',password,confirmPassword:password,companyName:'Growth Co',website:'https://example.com',industry:'Technology',size:'1-10',location:'Amman',contactName:'Owner',contactTitle:'Owner',about:''}).expect(201);
   assessment=(await dev.get('/api/growth/activities/full-stack-assessment').expect(200)).body.item;
 });
-after(async()=>{await fixture?.pool.end();});
+after(async()=>{globalThis.fetch=originalFetch;if(originalModelKey===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=originalModelKey;await fixture?.pool.end();});
 
 test('growth migration and catalogue are repeatable and preserve existing accounts',async()=>{
   const before=(await fixture.pool.query('SELECT count(*)::int AS n FROM users')).rows[0].n;
@@ -60,9 +78,19 @@ test('assessment eligibility requires account approval and a selected career pat
   await write(dev,'post',`/growth/activities/${assessment.id}/start`).expect(403);
   await fixture.pool.query("UPDATE developer_profiles SET career_path='Full-Stack Developer' WHERE user_id=$1",[devId]);
   const result=await write(dev,'post',`/growth/activities/${assessment.id}/start`).expect(200);attemptId=result.body.attempt.id;
+  assertStudentSafe(result.body);
   assessment={...assessment,questions:result.body.attempt.questions};
   assert.ok(new Date(result.body.attempt.deadline_at)>new Date());assert.equal(result.body.attempt.questions[0].correctAnswer,undefined);assert.equal(result.body.attempt.questions[4].rubric,undefined);
   const again=await write(dev,'post',`/growth/activities/${assessment.id}/start`).expect(200);assert.equal(again.body.attempt.id,attemptId);
+  assertStudentSafe(again.body);
+});
+
+test('start, resume and history omit raw papers and all server-only question metadata',async()=>{
+  await fixture.pool.query(`UPDATE growth_attempts SET paper_questions=jsonb_set(paper_questions,'{0,serverOnlySecret}','"hidden answer"'::jsonb),coach='{"hints":["Read carefully"],"serverOnlySecret":"hidden rubric"}'::jsonb WHERE id=$1`,[attemptId]);
+  for(const response of [await dev.get(`/api/growth/attempts/${attemptId}`).expect(200),await dev.get('/api/growth/overview').expect(200)])assertStudentSafe(response.body);
+  const privileged=(await admin.get(`/api/admin/growth/reviews/${attemptId}`).expect(200)).body.attempt;
+  assert.ok(privileged.paper_questions.some(question=>question.correctAnswer));
+  assert.ok(privileged.questions.some(question=>question.rubric));
 });
 test('roles, ownership and request-origin checks protect all growth routes',async()=>{
   await request(app).get('/api/growth/overview').expect(401);
@@ -104,6 +132,7 @@ test('submissions lock answers and publish a placement score without an administ
   const answers=assessment.questions.map(q=>({questionId:q.id,answer:q.type==='mcq'?mcqKey[q.id]:q.type==='code'?pseudo:written}));
   await write(dev,'put',`/growth/attempts/${attemptId}/answers`,{revision:1,answers}).expect(200);
   const submitted=(await write(dev,'post',`/growth/attempts/${attemptId}/submit`).expect(200)).body.attempt;
+  assertStudentSafe(submitted);
   assert.equal(submitted.status,'passed');assert.ok(Number(submitted.score)>=70);assert.match(submitted.feedback,/scored|%/);
   assert.equal(submitted.question_results.length,submitted.questions.length);
   assert.ok(submitted.question_results.every(item=>typeof item.note==='string'&&item.note.length>0));
@@ -113,6 +142,45 @@ test('submissions lock answers and publish a placement score without an administ
   assert.equal((await fixture.pool.query('SELECT count(*)::int AS n FROM growth_completions WHERE user_id=$1 AND activity_id=$2',[devId,assessment.id])).rows[0].n,1);
   assert.equal((await dev.get('/api/growth/overview')).body.assessmentPassed,true);
   await write(dev,'post',`/growth/activities/${assessment.id}/start`).expect(409);
+});
+
+test('a provider outage preserves saved work without scores, credit or human review; retry grades once',async()=>{
+  const content=await createActivity({questions:[{id:'explain',type:'written',prompt:'Explain ownership checks.',points:100,rubric:'Use session ownership before modifying data.',options:[],correctAnswer:'',starterCode:'',tests:[]}]});
+  const a=(await write(dev,'post',`/growth/activities/${content.id}/start`).expect(200)).body.attempt;
+  const answer='Compare the signed-in session owner to the record owner before allowing updates.';
+  await write(dev,'put',`/growth/attempts/${a.id}/answers`,{revision:0,answers:[{questionId:'explain',answer}]}).expect(200);
+  try{
+    providerMode='outage';
+    const unavailable=await write(dev,'post',`/growth/attempts/${a.id}/submit`).expect(503);
+    assert.match(unavailable.body.error,/saved answers are safe/);
+    const preserved=(await dev.get(`/api/growth/attempts/${a.id}`).expect(200)).body.attempt;
+    assert.equal(preserved.status,'active');assert.equal(preserved.score,null);assert.deepEqual(preserved.question_results,[]);
+    assert.equal(preserved.answers[0].answer,answer);assertStudentSafe(preserved);
+    assert.equal((await fixture.pool.query('SELECT count(*)::int AS n FROM growth_completions WHERE attempt_id=$1',[a.id])).rows[0].n,0);
+    assert.equal((await admin.get('/api/admin/growth/reviews').expect(200)).body.items.some(item=>item.id===a.id),false);
+  }finally{providerMode='valid';}
+  const graded=(await write(dev,'post',`/growth/attempts/${a.id}/submit`).expect(200)).body.attempt;
+  assert.equal(graded.status,'passed');assert.equal(graded.score,100);assertStudentSafe(graded);
+  await write(dev,'post',`/growth/attempts/${a.id}/submit`).expect(200);
+  assert.equal((await fixture.pool.query('SELECT count(*)::int AS n FROM growth_completions WHERE attempt_id=$1',[a.id])).rows[0].n,1);
+});
+
+test('expired exams preserve answers during an outage and automatically grade on reload after recovery',async()=>{
+  const content=await createActivity({questions:[{id:'explain',type:'written',prompt:'Explain session ownership.',points:100,rubric:'Compare the session owner to the record owner.',tests:[]}]});
+  const a=(await write(dev,'post',`/growth/activities/${content.id}/start`).expect(200)).body.attempt;
+  await write(dev,'put',`/growth/attempts/${a.id}/answers`,{revision:0,answers:[{questionId:'explain',answer:'Compare the signed-in session to the saved record owner.'}]}).expect(200);
+  await fixture.pool.query("UPDATE growth_attempts SET deadline_at=NOW()-INTERVAL '1 second' WHERE id=$1",[a.id]);
+  try{
+    providerMode='outage';
+    await dev.get(`/api/growth/attempts/${a.id}`).expect(503);
+    await write(dev,'put',`/growth/attempts/${a.id}/answers`,{revision:1,answers:[{questionId:'explain',answer:'Changed too late'}]}).expect(409);
+    const stored=(await fixture.pool.query('SELECT status,score FROM growth_attempts WHERE id=$1',[a.id])).rows[0];
+    assert.equal(stored.status,'active');assert.equal(stored.score,null);
+    assert.equal((await fixture.pool.query('SELECT answer FROM growth_answers WHERE attempt_id=$1',[a.id])).rows[0].answer,'Compare the signed-in session to the saved record owner.');
+    assert.equal((await fixture.pool.query('SELECT count(*)::int AS n FROM growth_completions WHERE attempt_id=$1',[a.id])).rows[0].n,0);
+  }finally{providerMode='valid';}
+  const recovered=(await dev.get(`/api/growth/attempts/${a.id}`).expect(200)).body.attempt;
+  assert.equal(recovered.status,'passed');assert.equal(recovered.expired,true);assert.equal(recovered.score,100);assertStudentSafe(recovered);
 });
 test('manual grading validates points and publishes immutable results without duplicate credit',async()=>{
   const content=await createActivity({questions:[
@@ -140,6 +208,7 @@ test('server deadlines automatically submit saved answers and forbid late writes
 test('challenge prerequisites enforce order, failed attempts can retry and skill progress counts once',async()=>{
   await write(dev,'post','/growth/activities/javascript-2/start').expect(403);
   const a=(await write(dev,'post','/growth/activities/javascript-1/start').expect(200)).body.attempt;
+  assertStudentSafe(a);
   assert.equal(a.questions.length,10);assert.match(a.lessonUrl,/w3schools\.com/);assert.ok(a.coach.hints.length);
   const missed=(await write(dev,'post',`/growth/attempts/${a.id}/submit`).expect(200)).body.attempt;
   assert.equal(missed.status,'failed');assert.ok(Number(missed.score)<60);
@@ -245,7 +314,8 @@ test('failed placement opens milestone-1 prep and blocks retake until every path
   const failed=(await write(prep,'post','/growth/activities/full-stack-assessment/start').expect(200)).body.attempt;
   const wrong=failed.questions.map(q=>({questionId:q.id,answer:q.options?.[0]||'wrong'}));
   await write(prep,'put',`/growth/attempts/${failed.id}/answers`,{revision:0,answers:wrong}).expect(200);
-  const submitted=(await write(prep,'post',`/growth/attempts/${failed.id}/submit`).expect(200)).body.attempt;
+  let submitted;
+  try{providerMode='zero';submitted=(await write(prep,'post',`/growth/attempts/${failed.id}/submit`).expect(200)).body.attempt;}finally{providerMode='valid';}
   assert.equal(submitted.status,'failed');
   const overview=(await prep.get('/api/growth/overview').expect(200)).body;
   assert.equal(overview.assessmentPassed,false);

@@ -156,10 +156,14 @@ export function createCompanyProjectRouter(pool) {
 
   router.post('/:id/assignments/:assignmentId/feedback', requireCompanyPermission('evaluations:manage'), async (req, res) => {
     const data = validate(z.object({ milestoneId: z.string().uuid(), feedback: z.string().trim().min(2).max(5000), accept: z.boolean().default(false) }), req.body);
+    if (!validId(req.params.assignmentId)) fail(404, 'Submission not found.');
     const view = await transaction(pool, async client => {
       const project = await loadProject(client, req.user.companyAccess.companyId, req.params.id);
-      const { rowCount } = await client.query(`UPDATE phase_submissions SET feedback=$3,status=$4,updated_at=NOW()
-        WHERE match_id=$1 AND milestone_id=$2`, [req.params.assignmentId, data.milestoneId, data.feedback, data.accept ? 'accepted' : 'revision']);
+      const { rowCount } = await client.query(`UPDATE phase_submissions s SET feedback=$3,status=$4,updated_at=NOW()
+        FROM project_matches m, project_milestones phase
+        WHERE s.match_id=m.id AND s.milestone_id=phase.id AND m.id=$1 AND phase.id=$2
+          AND m.project_id=$5 AND phase.project_id=$5`,
+      [req.params.assignmentId, data.milestoneId, data.feedback, data.accept ? 'accepted' : 'revision', project.id]);
       if (!rowCount) fail(404, 'Submission not found.');
       return projectView(client, project);
     });

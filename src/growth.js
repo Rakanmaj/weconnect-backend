@@ -37,7 +37,23 @@ const attemptSelect = `SELECT t.*,a.kind,a.skill_id,a.slug,a.position,(SELECT s.
   JOIN growth_activity_versions v ON v.activity_id=t.activity_id AND v.version=t.version`;
 
 function publicQuestions(questions) {
-  return questions.map(({ correctAnswer: _answer, rubric: _rubric, ...q }) => q);
+  return questions.map(({ id, type, prompt, points, options = [], starterCode = '', tests = [] }) => ({
+    id, type, prompt, points, options, starterCode,
+    tests: tests.map(({ name, input, output }) => ({ name, input, output })),
+  }));
+}
+function studentAttempt(attempt) {
+  // Do not spread database rows into student payloads. In particular, the
+  // server-only paper snapshot contains answer keys and grading rubrics.
+  const fields = ['id','user_id','activity_id','version','status','started_at','deadline_at','submitted_at','expired',
+    'answer_revision','objective_score','score','feedback','reviewed_by','reviewed_at',
+    'security_warning_count','security_warning_limit','security_stopped_at','security_stop_reason',
+    'kind','skill_id','slug','position','skill_slug','title','description','requirements','career_paths','duration_minutes','pass_score'];
+  const result = Object.fromEntries(fields.filter(key => Object.hasOwn(attempt, key)).map(key => [key, attempt[key]]));
+  const final = attempt.status === 'passed' || attempt.status === 'failed';
+  result.question_results = final ? (attempt.question_results || []).map(({ id, earned, points, percent, note }) => ({ id, earned, points, percent, note })) : [];
+  result.coach = { hints: Array.isArray(attempt.coach?.hints) ? attempt.coach.hints.filter(hint => typeof hint === 'string') : [], source: attempt.coach?.source === 'model' ? 'model' : 'rules' };
+  return result;
 }
 function displayContent(row, admin = false) {
   const questionCount = row.kind === 'challenge' ? Math.min(PAPER_SIZE, row.questions.length) : row.questions.length;
@@ -142,7 +158,7 @@ async function attemptResponse(client, attempt, admin = false) {
   const review = (await client.query("SELECT details FROM growth_review_events WHERE attempt_id=$1 AND action='reviewed' ORDER BY created_at DESC LIMIT 1",[attempt.id])).rows[0]?.details || null;
   const codeChecks=(await client.query('SELECT question_id,source_hash,result,created_at FROM growth_code_checks WHERE attempt_id=$1 ORDER BY created_at DESC LIMIT 20',[attempt.id])).rows.map(c=>({...c,matchesSavedAnswer:c.source_hash===createHash('sha256').update(answers.find(a=>a.question_id===c.question_id)?.answer||'').digest('hex')}));
   const securityEvents=(await client.query('SELECT kind,counted,details,created_at FROM growth_security_events WHERE attempt_id=$1 ORDER BY created_at DESC LIMIT 100',[attempt.id])).rows;
-  return { ...attempt, score:attempt.score===null?null:Number(attempt.score), objective_score:attempt.objective_score===null?null:Number(attempt.objective_score), questions:admin?attempt.questions:publicQuestions(attempt.questions), answers, files, project, review, codeChecks, securityEvents,
+  return { ...(admin?attempt:studentAttempt(attempt)), score:attempt.score===null?null:Number(attempt.score), objective_score:attempt.objective_score===null?null:Number(attempt.objective_score), questions:admin?attempt.questions:publicQuestions(attempt.questions), answers, files, project, review, codeChecks, securityEvents,
     serverNow:new Date().toISOString(), lessonUrl:lessonBySlug(attempt.slug)?.url || '', level:attempt.kind==='assessment' && attempt.score!==null ? overallLevel(Number(attempt.score)) : null };
 }
 function writable(attempt) {
@@ -173,7 +189,7 @@ export function createGrowthRouter(pool, config) {
       const active=(await client.query('SELECT id FROM growth_attempts WHERE user_id=$1 AND status=\'active\' AND deadline_at<=NOW()',[req.user.id])).rows;
       for(const row of active) await submit(client,await getAttempt(client,row.id,req.user,true));
       const p=await profile(client,req.user.id);
-      const history=(await client.query(`${attemptSelect} WHERE t.user_id=$1 ORDER BY t.started_at DESC`,[req.user.id])).rows.map(({questions:_q,...row})=>row);
+      const history=(await client.query(`${attemptSelect} WHERE t.user_id=$1 ORDER BY t.started_at DESC`,[req.user.id])).rows.map(studentAttempt);
       const scored=history.filter(a=>a.kind==='assessment' && a.status==='passed' && a.career_paths.includes(p.career_path));
       const best=scored.length?Math.max(...scored.map(a=>Number(a.score))):null;
       const completions=(await client.query('SELECT a.kind,count(*)::int AS count FROM growth_completions c JOIN growth_activities a ON a.id=c.activity_id WHERE c.user_id=$1 GROUP BY a.kind',[req.user.id])).rows;
@@ -183,7 +199,7 @@ export function createGrowthRouter(pool, config) {
         careerPath: p.career_path || '', approved: p.status === 'verified', assessmentPassed,
         level: best === null ? null : overallLevel(best), bestScore: best, history, completions,
         placementPrep, canRetakePlacement: assessmentPassed || (placementPrep?.canRetake ?? true),
-        aiEnabled: false, runnerConfigured: config.runnerMode !== 'disabled',
+        aiEnabled: Boolean(process.env.GROQ_API_KEY), runnerConfigured: config.runnerMode !== 'disabled',
       };
     });res.json(result);
   });
