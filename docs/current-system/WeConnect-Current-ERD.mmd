@@ -1,0 +1,139 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: '#EFF6FF'
+    primaryTextColor: '#0D1B3D'
+    primaryBorderColor: '#94A3B8'
+    lineColor: '#64748B'
+    tertiaryColor: '#F0FDFA'
+    fontFamily: Arial
+  er:
+    layoutDirection: LR
+    entityPadding: 15
+    minEntityWidth: 210
+---
+erDiagram
+  direction LR
+  users {
+    uuid id PK "required"
+    varchar(16) role "required"
+    varchar(254) email UK "required"
+    text password_hash "required"
+    varchar(100) first_name "required"
+    varchar(100) last_name "required"
+    varchar(16) account_status "required"
+    timestamptz email_verified_at "nullable"
+    timestamptz last_login_at "nullable"
+    timestamptz created_at "required"
+    timestamptz updated_at "required"
+  }
+  developer_profiles {
+    uuid user_id PK, FK "required"
+    varchar(120) preferred_position "required"
+    varchar(200) location "required"
+    varchar(2048) github_url "required"
+    timestamptz created_at "required"
+    text bio "required"
+    varchar(40) phone "required"
+    jsonb education "required"
+    text_array skills "required"
+    int2 years_experience "required"
+    text career_goals "required"
+    varchar(2048) linkedin_url "required"
+    varchar(2048) portfolio_url "required"
+    int2 weekly_hours "required"
+    text_array project_types "required"
+    date available_from "nullable"
+    varchar(120) career_path "required"
+    int2 onboarding_step "required"
+    timestamptz onboarding_completed_at "nullable"
+    timestamptz updated_at "required"
+  }
+  company_profiles {
+    uuid user_id PK, FK "required"
+    varchar(200) company_name "required"
+    varchar(2048) website "required"
+    varchar(120) industry "required"
+    varchar(20) company_size "required"
+    varchar(200) location "required"
+    varchar(100) contact_name "required"
+    varchar(120) contact_title "required"
+    text about "required"
+    timestamptz created_at "required"
+    varchar(100) registration_number "required"
+    varchar(100) registration_country "required"
+    timestamptz updated_at "required"
+  }
+  user_sessions {
+    uuid id PK "required"
+    uuid user_id FK "required"
+    char(64) token_hash UK "required"
+    timestamptz created_at "required"
+    timestamptz expires_at "required"
+  }
+  account_tokens {
+    uuid id PK "required"
+    uuid user_id FK "required"
+    varchar(20) purpose "required"
+    char(64) token_hash UK "required"
+    timestamptz expires_at "required"
+    timestamptz used_at "nullable"
+    timestamptz created_at "required"
+  }
+  profile_files {
+    uuid id PK "required"
+    uuid user_id FK "required"
+    varchar(24) kind "required"
+    varchar(180) original_name "required"
+    varchar(40) mime_type "required"
+    int4 byte_size "required"
+    bytea content "required"
+    timestamptz created_at "required"
+  }
+  account_verifications {
+    uuid user_id PK, FK "required"
+    varchar(16) status "required"
+    int4 revision "required"
+    timestamptz submitted_at "nullable"
+    timestamptz reviewed_at "nullable"
+    uuid reviewed_by FK "nullable"
+    text feedback "required"
+    jsonb snapshot "required"
+    timestamptz updated_at "required"
+  }
+  verification_events {
+    uuid id PK "required"
+    uuid user_id FK "required"
+    uuid actor_id FK "nullable"
+    varchar(16) status "required"
+    text feedback "required"
+    timestamptz created_at "required"
+  }
+  company_team_members {
+    uuid id PK "required"
+    uuid company_id FK "required"
+    uuid member_user_id FK "nullable"
+    varchar(100) name "required"
+    varchar(254) email "required"
+    varchar(16) team_role "required"
+    varchar(16) status "required"
+    char(64) token_hash UK "nullable"
+    timestamptz expires_at "nullable"
+    uuid invited_by FK "nullable"
+    timestamptz joined_at "nullable"
+    timestamptz created_at "required"
+    timestamptz updated_at "required"
+  }
+  users ||--o| developer_profiles : "owns developer profile"
+  users ||--o| company_profiles : "owns company profile"
+  users ||--o{ user_sessions : "has sessions"
+  users ||--o{ account_tokens : "receives action tokens"
+  users ||--o{ profile_files : "owns private files"
+  users ||--o| account_verifications : "has current review"
+  users |o--o{ account_verifications : "reviews via reviewed_by"
+  users ||--o{ verification_events : "has review history"
+  users |o--o{ verification_events : "acts via actor_id"
+  company_profiles ||--o{ company_team_members : "owns workspace roster"
+  users |o--o{ company_team_members : "joins via member_user_id"
+  users |o--o{ company_team_members : "invites via invited_by"

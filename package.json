@@ -14,7 +14,9 @@
     "db:seed": "node src/scripts/seed-demo.js",
     "db:seed-exam-bank": "node src/scripts/seed-exam-bank-local.js",
     "ai:fill-milestone": "node src/scripts/fill-milestone-bank.js",
-    "auth:create-admin": "node src/scripts/create-admin.js"
+    "auth:create-admin": "node src/scripts/create-admin.js",
+    "db:upgrade-existing": "node src/scripts/upgrade-existing-local.js",
+    "test:lab-privacy": "node tools/check-lab-privacy.mjs"
   },
   "dependencies": {
     "acorn": "^8.19.0",

@@ -62,6 +62,10 @@ Finance has no payment gateway, automatic charging or escrow.
 
 ## Mail and database guides
 
+- Existing database upgrade: [version-preserving upgrade and backups](docs/EXISTING_DATABASE_UPGRADE.md).
+- Learning lab protections: [browser regression checks](docs/LAB_PRIVACY_CHECKS.md).
+- Historical Weeks 1–2 diagrams: [1 November snapshot](docs/current-system/README.md).
+
 MAIL_MODE=outbox writes private development email files under .local/mail.
 SMTP settings in .env.example are placeholders for optional real delivery.
 Never commit .env or .local; outgoing account messages can contain sensitive links.

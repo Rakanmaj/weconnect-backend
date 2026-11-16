@@ -1,0 +1,1190 @@
+{
+  "database": "weconnect_db",
+  "captured": "2026-11-01",
+  "columns": [
+    {
+      "table_name": "account_tokens",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_tokens",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_tokens",
+      "column_name": "purpose",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 20
+    },
+    {
+      "table_name": "account_tokens",
+      "column_name": "token_hash",
+      "data_type": "character",
+      "udt_name": "bpchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 64
+    },
+    {
+      "table_name": "account_tokens",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_tokens",
+      "column_name": "used_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_tokens",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "status",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "'draft'::character varying",
+      "character_maximum_length": 16
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "revision",
+      "data_type": "integer",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "submitted_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "reviewed_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "reviewed_by",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "feedback",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "''::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "snapshot",
+      "data_type": "jsonb",
+      "udt_name": "jsonb",
+      "is_nullable": "NO",
+      "column_default": "'{}'::jsonb",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "company_name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 200
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "website",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 2048
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "industry",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 120
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "company_size",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 20
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "location",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 200
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "contact_name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 100
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "contact_title",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 120
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "about",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "''::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "registration_number",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 100
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "registration_country",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 100
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "company_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "member_user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 100
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "email",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 254
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "team_role",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 16
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "status",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "'invited'::character varying",
+      "character_maximum_length": 16
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "token_hash",
+      "data_type": "character",
+      "udt_name": "bpchar",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": 64
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "invited_by",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "joined_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "preferred_position",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 120
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "location",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 200
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "github_url",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 2048
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "bio",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "''::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 40
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "education",
+      "data_type": "jsonb",
+      "udt_name": "jsonb",
+      "is_nullable": "NO",
+      "column_default": "'[]'::jsonb",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "skills",
+      "data_type": "ARRAY",
+      "udt_name": "_text",
+      "is_nullable": "NO",
+      "column_default": "'{}'::text[]",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "years_experience",
+      "data_type": "smallint",
+      "udt_name": "int2",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "career_goals",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "''::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "linkedin_url",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 2048
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "portfolio_url",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 2048
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "weekly_hours",
+      "data_type": "smallint",
+      "udt_name": "int2",
+      "is_nullable": "NO",
+      "column_default": "25",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "project_types",
+      "data_type": "ARRAY",
+      "udt_name": "_text",
+      "is_nullable": "NO",
+      "column_default": "'{}'::text[]",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "available_from",
+      "data_type": "date",
+      "udt_name": "date",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "career_path",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 120
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "onboarding_step",
+      "data_type": "smallint",
+      "udt_name": "int2",
+      "is_nullable": "NO",
+      "column_default": "1",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "onboarding_completed_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "kind",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 24
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "original_name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 180
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "mime_type",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 40
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "byte_size",
+      "data_type": "integer",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "content",
+      "data_type": "bytea",
+      "udt_name": "bytea",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "token_hash",
+      "data_type": "character",
+      "udt_name": "bpchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 64
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "users",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "users",
+      "column_name": "role",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 16
+    },
+    {
+      "table_name": "users",
+      "column_name": "email",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 254
+    },
+    {
+      "table_name": "users",
+      "column_name": "password_hash",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "users",
+      "column_name": "first_name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 100
+    },
+    {
+      "table_name": "users",
+      "column_name": "last_name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "''::character varying",
+      "character_maximum_length": 100
+    },
+    {
+      "table_name": "users",
+      "column_name": "account_status",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": "'active'::character varying",
+      "character_maximum_length": 16
+    },
+    {
+      "table_name": "users",
+      "column_name": "email_verified_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "users",
+      "column_name": "last_login_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "users",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "users",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "actor_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "status",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": 16
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "feedback",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "''::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "character_maximum_length": null
+    }
+  ],
+  "keys": [
+    {
+      "table_name": "account_tokens",
+      "column_name": "id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "account_tokens_pkey",
+      "foreign_table": "account_tokens",
+      "foreign_column": "id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "account_tokens",
+      "column_name": "token_hash",
+      "constraint_type": "UNIQUE",
+      "constraint_name": "account_tokens_token_hash_key",
+      "foreign_table": "account_tokens",
+      "foreign_column": "token_hash",
+      "delete_rule": null
+    },
+    {
+      "table_name": "account_tokens",
+      "column_name": "user_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "account_tokens_user_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "user_id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "account_verifications_pkey",
+      "foreign_table": "account_verifications",
+      "foreign_column": "user_id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "reviewed_by",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "account_verifications_reviewed_by_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "table_name": "account_verifications",
+      "column_name": "user_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "account_verifications_user_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "user_id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "company_profiles_pkey",
+      "foreign_table": "company_profiles",
+      "foreign_column": "user_id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "company_profiles",
+      "column_name": "user_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "company_profiles_user_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "company_id",
+      "constraint_type": "UNIQUE",
+      "constraint_name": "company_team_members_company_id_email_key",
+      "foreign_table": "company_team_members",
+      "foreign_column": "company_id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "company_id",
+      "constraint_type": "UNIQUE",
+      "constraint_name": "company_team_members_company_id_email_key",
+      "foreign_table": "company_team_members",
+      "foreign_column": "email",
+      "delete_rule": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "email",
+      "constraint_type": "UNIQUE",
+      "constraint_name": "company_team_members_company_id_email_key",
+      "foreign_table": "company_team_members",
+      "foreign_column": "company_id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "email",
+      "constraint_type": "UNIQUE",
+      "constraint_name": "company_team_members_company_id_email_key",
+      "foreign_table": "company_team_members",
+      "foreign_column": "email",
+      "delete_rule": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "company_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "company_team_members_company_id_fkey",
+      "foreign_table": "company_profiles",
+      "foreign_column": "user_id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "invited_by",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "company_team_members_invited_by_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "member_user_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "company_team_members_member_user_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "company_team_members_pkey",
+      "foreign_table": "company_team_members",
+      "foreign_column": "id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "company_team_members",
+      "column_name": "token_hash",
+      "constraint_type": "UNIQUE",
+      "constraint_name": "company_team_members_token_hash_key",
+      "foreign_table": "company_team_members",
+      "foreign_column": "token_hash",
+      "delete_rule": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "user_id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "developer_profiles_pkey",
+      "foreign_table": "developer_profiles",
+      "foreign_column": "user_id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "developer_profiles",
+      "column_name": "user_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "developer_profiles_user_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "profile_files_pkey",
+      "foreign_table": "profile_files",
+      "foreign_column": "id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "profile_files",
+      "column_name": "user_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "profile_files_user_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "user_sessions_pkey",
+      "foreign_table": "user_sessions",
+      "foreign_column": "id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "token_hash",
+      "constraint_type": "UNIQUE",
+      "constraint_name": "user_sessions_token_hash_key",
+      "foreign_table": "user_sessions",
+      "foreign_column": "token_hash",
+      "delete_rule": null
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "user_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "user_sessions_user_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "CASCADE"
+    },
+    {
+      "table_name": "users",
+      "column_name": "id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "users_pkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "actor_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "verification_events_actor_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "SET NULL"
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "id",
+      "constraint_type": "PRIMARY KEY",
+      "constraint_name": "verification_events_pkey",
+      "foreign_table": "verification_events",
+      "foreign_column": "id",
+      "delete_rule": null
+    },
+    {
+      "table_name": "verification_events",
+      "column_name": "user_id",
+      "constraint_type": "FOREIGN KEY",
+      "constraint_name": "verification_events_user_id_fkey",
+      "foreign_table": "users",
+      "foreign_column": "id",
+      "delete_rule": "CASCADE"
+    }
+  ],
+  "indexes": [
+    {
+      "tablename": "account_tokens",
+      "indexname": "account_tokens_owner_idx",
+      "indexdef": "CREATE INDEX account_tokens_owner_idx ON public.account_tokens USING btree (user_id, purpose)"
+    },
+    {
+      "tablename": "account_tokens",
+      "indexname": "account_tokens_pkey",
+      "indexdef": "CREATE UNIQUE INDEX account_tokens_pkey ON public.account_tokens USING btree (id)"
+    },
+    {
+      "tablename": "account_tokens",
+      "indexname": "account_tokens_token_hash_key",
+      "indexdef": "CREATE UNIQUE INDEX account_tokens_token_hash_key ON public.account_tokens USING btree (token_hash)"
+    },
+    {
+      "tablename": "account_verifications",
+      "indexname": "account_verifications_pkey",
+      "indexdef": "CREATE UNIQUE INDEX account_verifications_pkey ON public.account_verifications USING btree (user_id)"
+    },
+    {
+      "tablename": "account_verifications",
+      "indexname": "account_verifications_queue_idx",
+      "indexdef": "CREATE INDEX account_verifications_queue_idx ON public.account_verifications USING btree (status, submitted_at)"
+    },
+    {
+      "tablename": "company_profiles",
+      "indexname": "company_profiles_pkey",
+      "indexdef": "CREATE UNIQUE INDEX company_profiles_pkey ON public.company_profiles USING btree (user_id)"
+    },
+    {
+      "tablename": "company_team_members",
+      "indexname": "company_team_members_company_id_email_key",
+      "indexdef": "CREATE UNIQUE INDEX company_team_members_company_id_email_key ON public.company_team_members USING btree (company_id, email)"
+    },
+    {
+      "tablename": "company_team_members",
+      "indexname": "company_team_members_pkey",
+      "indexdef": "CREATE UNIQUE INDEX company_team_members_pkey ON public.company_team_members USING btree (id)"
+    },
+    {
+      "tablename": "company_team_members",
+      "indexname": "company_team_members_token_hash_key",
+      "indexdef": "CREATE UNIQUE INDEX company_team_members_token_hash_key ON public.company_team_members USING btree (token_hash)"
+    },
+    {
+      "tablename": "company_team_members",
+      "indexname": "company_team_members_user_idx",
+      "indexdef": "CREATE INDEX company_team_members_user_idx ON public.company_team_members USING btree (member_user_id, status)"
+    },
+    {
+      "tablename": "developer_profiles",
+      "indexname": "developer_profiles_pkey",
+      "indexdef": "CREATE UNIQUE INDEX developer_profiles_pkey ON public.developer_profiles USING btree (user_id)"
+    },
+    {
+      "tablename": "profile_files",
+      "indexname": "profile_files_owner_idx",
+      "indexdef": "CREATE INDEX profile_files_owner_idx ON public.profile_files USING btree (user_id)"
+    },
+    {
+      "tablename": "profile_files",
+      "indexname": "profile_files_pkey",
+      "indexdef": "CREATE UNIQUE INDEX profile_files_pkey ON public.profile_files USING btree (id)"
+    },
+    {
+      "tablename": "user_sessions",
+      "indexname": "user_sessions_expires_at_idx",
+      "indexdef": "CREATE INDEX user_sessions_expires_at_idx ON public.user_sessions USING btree (expires_at)"
+    },
+    {
+      "tablename": "user_sessions",
+      "indexname": "user_sessions_pkey",
+      "indexdef": "CREATE UNIQUE INDEX user_sessions_pkey ON public.user_sessions USING btree (id)"
+    },
+    {
+      "tablename": "user_sessions",
+      "indexname": "user_sessions_token_hash_key",
+      "indexdef": "CREATE UNIQUE INDEX user_sessions_token_hash_key ON public.user_sessions USING btree (token_hash)"
+    },
+    {
+      "tablename": "user_sessions",
+      "indexname": "user_sessions_user_id_idx",
+      "indexdef": "CREATE INDEX user_sessions_user_id_idx ON public.user_sessions USING btree (user_id)"
+    },
+    {
+      "tablename": "users",
+      "indexname": "users_email_unique",
+      "indexdef": "CREATE UNIQUE INDEX users_email_unique ON public.users USING btree (lower((email)::text))"
+    },
+    {
+      "tablename": "users",
+      "indexname": "users_pkey",
+      "indexdef": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+    },
+    {
+      "tablename": "verification_events",
+      "indexname": "verification_events_pkey",
+      "indexdef": "CREATE UNIQUE INDEX verification_events_pkey ON public.verification_events USING btree (id)"
+    }
+  ]
+}
