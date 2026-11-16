@@ -55,8 +55,9 @@ frontend inside the same parent directory, then build the frontend first.
 - Timed attempts, saved answers, objective bounded JavaScript checks and admin review.
 - Best-effort integrity warnings, exam stop and duplicate-safe completion credit.
 
-AI grading/follow-ups and later company delivery/evaluation/hiring/finance persistence
-remain planned. Browser protections cannot guarantee blocking OS screenshots.
+Automatic grading and company project persistence are included in the AI integration.
+See [AI grading configuration and failure handling](docs/AI_GRADING_INTEGRATION.md).
+Adaptive assessment follow-ups remain unfinished. Browser protections cannot guarantee blocking OS screenshots.
 Finance has no payment gateway, automatic charging or escrow.
 
 ## Mail and database guides

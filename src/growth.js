@@ -7,6 +7,9 @@ import { authenticationRequired, roleRequired } from './auth.js';
 import { transaction } from './db.js';
 import { fail, validate, validId } from './errors.js';
 import { checkJavaScript, runJavaScript, objectiveGrade, overallLevel } from './growth-grading.js';
+import { applyPaper, choosePaper, choosePlacementPaper, coachFromHistory, gradeMilestone, maybePersonalizeCoach, PAPER_SIZE, recentConceptHistory, rememberConcept } from './milestones.js';
+import { lessonBySlug } from './growth-lessons.js';
+import { hasSubmittedPlacement, placementPrepPayload, remediationStatus } from './placement-remediation.js';
 
 const paths = ['Frontend Developer', 'Backend Developer', 'Full-Stack Developer'];
 const question = z.object({ id: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/), type: z.enum(['mcq','code','written']),
@@ -34,10 +37,27 @@ const attemptSelect = `SELECT t.*,a.kind,a.skill_id,a.slug,a.position,(SELECT s.
   JOIN growth_activity_versions v ON v.activity_id=t.activity_id AND v.version=t.version`;
 
 function publicQuestions(questions) {
-  return questions.map(({ correctAnswer: _answer, rubric: _rubric, ...q }) => q);
+  return questions.map(({ id, type, prompt, points, options = [], starterCode = '', tests = [] }) => ({
+    id, type, prompt, points, options, starterCode,
+    tests: tests.map(({ name, input, output }) => ({ name, input, output })),
+  }));
+}
+function studentAttempt(attempt) {
+  // Do not spread database rows into student payloads. In particular, the
+  // server-only paper snapshot contains answer keys and grading rubrics.
+  const fields = ['id','user_id','activity_id','version','status','started_at','deadline_at','submitted_at','expired',
+    'answer_revision','objective_score','score','feedback','reviewed_by','reviewed_at',
+    'security_warning_count','security_warning_limit','security_stopped_at','security_stop_reason',
+    'kind','skill_id','slug','position','skill_slug','title','description','requirements','career_paths','duration_minutes','pass_score'];
+  const result = Object.fromEntries(fields.filter(key => Object.hasOwn(attempt, key)).map(key => [key, attempt[key]]));
+  const final = attempt.status === 'passed' || attempt.status === 'failed';
+  result.question_results = final ? (attempt.question_results || []).map(({ id, earned, points, percent, note }) => ({ id, earned, points, percent, note })) : [];
+  result.coach = { hints: Array.isArray(attempt.coach?.hints) ? attempt.coach.hints.filter(hint => typeof hint === 'string') : [], source: attempt.coach?.source === 'model' ? 'model' : 'rules' };
+  return result;
 }
 function displayContent(row, admin = false) {
-  return { ...row, questionCount:row.questions.length, questions: admin ? row.questions : [], version: row.content_version };
+  const questionCount = row.kind === 'challenge' ? Math.min(PAPER_SIZE, row.questions.length) : row.questions.length;
+  return { ...row, questionCount, questions: admin ? row.questions : [], version: row.content_version, lessonUrl: lessonBySlug(row.slug)?.url || '' };
 }
 async function profile(client, userId) {
   const { rows } = await client.query('SELECT d.career_path,v.status FROM developer_profiles d LEFT JOIN account_verifications v ON v.user_id=d.user_id WHERE d.user_id=$1', [userId]);
@@ -61,36 +81,63 @@ async function content(client, key, admin = false) {
 async function eligible(client, userId, item) {
   const path = await ready(client,userId);
   if (!item.career_paths.includes(path)) fail(403, 'This activity belongs to another career path.');
-  if (item.kind !== 'assessment' && !await passedAssessment(client,userId,path)) fail(403, 'Pass your career-path assessment before starting this activity.');
+  if (item.kind === 'project' && !await passedAssessment(client, userId, path)) {
+    fail(403, 'Pass your career-path assessment before starting internal projects.');
+  }
   if (item.kind === 'challenge') {
+    if (!await passedAssessment(client, userId, path)) {
+      if (!(await hasSubmittedPlacement(client, userId, path, attemptSelect))) {
+        fail(403, 'Take your placement assessment first. If you did not pass, you can prepare on the Learning lab.');
+      }
+      if (item.position > 1) {
+        fail(403, 'During placement prep, complete milestone 1 in each skill before later milestones.');
+      }
+    }
     const { rows } = await client.query('SELECT * FROM growth_skills WHERE id=$1 AND status=\'published\'', [item.skill_id]);
     if (!rows[0] || !rows[0].career_paths.includes(path)) fail(403, 'This skill is not available for your career path.');
-    const previous = await client.query(`SELECT a.id FROM growth_activities a WHERE a.kind='challenge' AND a.skill_id=$1 AND a.position<$2 AND a.published_version IS NOT NULL
-      AND NOT EXISTS (SELECT 1 FROM growth_completions c WHERE c.activity_id=a.id AND c.user_id=$3)`, [item.skill_id,item.position,userId]);
-    if (previous.rows.length) fail(403, 'Complete the earlier challenges in this skill path first.');
+    if (await passedAssessment(client, userId, path)) {
+      const previous = await client.query(`SELECT a.id FROM growth_activities a WHERE a.kind='challenge' AND a.skill_id=$1 AND a.position<$2 AND a.published_version IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM growth_completions c WHERE c.activity_id=a.id AND c.user_id=$3)`, [item.skill_id, item.position, userId]);
+      if (previous.rows.length) fail(403, 'Complete the earlier challenges in this skill path first.');
+    }
   }
 }
 async function getAttempt(client, id, user, lock = false) {
   if (!validId(id)) fail(404, 'Attempt not found.');
   const { rows } = await client.query(`${attemptSelect} WHERE t.id=$1 ${user.role === 'admin' ? '' : 'AND t.user_id=$2'}${lock ? ' FOR UPDATE OF t' : ''}`, user.role === 'admin' ? [id] : [id,user.id]);
   if (!rows[0]) fail(404, 'Attempt not found.');
-  return rows[0];
+  return applyPaper(rows[0]);
 }
 async function answersFor(client, id) {
   return (await client.query('SELECT question_id,answer,flagged FROM growth_answers WHERE attempt_id=$1 ORDER BY question_id',[id])).rows;
 }
-async function credit(client, attempt, score, feedback, actorId = null) {
+async function credit(client, attempt, score, feedback, actorId = null, questionResults = null) {
   const status = score >= attempt.pass_score ? 'passed' : 'failed';
-  await client.query('UPDATE growth_attempts SET status=$2,score=$3,feedback=$4,reviewed_by=$5,reviewed_at=NOW() WHERE id=$1', [attempt.id,status,score,feedback,actorId]);
+  await client.query(`UPDATE growth_attempts SET status=$2,score=$3,feedback=$4,reviewed_by=$5,reviewed_at=NOW(),
+    question_results=COALESCE($6::jsonb, question_results) WHERE id=$1`, [attempt.id,status,score,feedback,actorId,questionResults?JSON.stringify(questionResults):null]);
   if (status === 'passed') await client.query('INSERT INTO growth_completions(user_id,activity_id,attempt_id) VALUES($1,$2,$3) ON CONFLICT(user_id,activity_id) DO NOTHING', [attempt.user_id,attempt.activity_id,attempt.id]);
-  return { ...attempt,status,score,feedback,reviewed_by:actorId };
+  return { ...attempt,status,score,feedback,question_results:questionResults||attempt.question_results||[],reviewed_by:actorId };
 }
 async function submit(client, attempt, forceReview = false) {
   if (attempt.status !== 'active') return attempt;
   const answers = await answersFor(client,attempt.id);
-  const grade = objectiveGrade(attempt.questions,Object.fromEntries(answers.map(a=>[a.question_id,a.answer])));
+  const answerMap = Object.fromEntries(answers.map(a=>[a.question_id,a.answer]));
+  if ((attempt.kind === 'challenge' || attempt.kind === 'assessment') && !forceReview) {
+    const graded = await gradeMilestone(attempt.questions, answerMap);
+    const feedback = graded.source === 'model'
+      ? graded.feedback
+      : attempt.kind === 'assessment'
+        ? `You scored ${graded.score}%. ${attempt.pass_score}% passes this placement assessment.`
+        : graded.feedback;
+    const expired = Boolean(attempt.deadline_at && new Date(attempt.deadline_at).getTime() <= Date.now());
+    await client.query('UPDATE growth_attempts SET status=$2,submitted_at=NOW(),expired=$3,objective_score=$4 WHERE id=$1', [attempt.id,'failed',expired,graded.score]);
+    const credited = await credit(client, { ...attempt, expired }, graded.score, feedback, null, graded.questionResults);
+    if (attempt.kind === 'challenge') await rememberConcept(client, { ...attempt, feedback }, answerMap, graded.score);
+    return credited;
+  }
+  const grade = objectiveGrade(attempt.questions, answerMap);
   const expired = Boolean(attempt.deadline_at && new Date(attempt.deadline_at).getTime() <= Date.now());
-  const pending = forceReview || attempt.kind === 'project' || grade.needsReview;
+  const pending = forceReview || attempt.kind === 'project';
   await client.query('UPDATE growth_attempts SET status=$2,submitted_at=NOW(),expired=$3,objective_score=$4 WHERE id=$1', [attempt.id,pending?'pending-review':'failed',expired,grade.score]);
   await client.query("INSERT INTO growth_review_events(attempt_id,actor_id,action,details) VALUES($1,$2,'submitted',$3)",[attempt.id,attempt.user_id,JSON.stringify({expired,objectiveScore:grade.score})]);
   const updated = { ...attempt, expired, objective_score:grade.score, status:pending?'pending-review':'failed' };
@@ -111,8 +158,8 @@ async function attemptResponse(client, attempt, admin = false) {
   const review = (await client.query("SELECT details FROM growth_review_events WHERE attempt_id=$1 AND action='reviewed' ORDER BY created_at DESC LIMIT 1",[attempt.id])).rows[0]?.details || null;
   const codeChecks=(await client.query('SELECT question_id,source_hash,result,created_at FROM growth_code_checks WHERE attempt_id=$1 ORDER BY created_at DESC LIMIT 20',[attempt.id])).rows.map(c=>({...c,matchesSavedAnswer:c.source_hash===createHash('sha256').update(answers.find(a=>a.question_id===c.question_id)?.answer||'').digest('hex')}));
   const securityEvents=(await client.query('SELECT kind,counted,details,created_at FROM growth_security_events WHERE attempt_id=$1 ORDER BY created_at DESC LIMIT 100',[attempt.id])).rows;
-  return { ...attempt, score:attempt.score===null?null:Number(attempt.score), objective_score:attempt.objective_score===null?null:Number(attempt.objective_score), questions:admin?attempt.questions:publicQuestions(attempt.questions), answers, files, project, review, codeChecks, securityEvents,
-    serverNow:new Date().toISOString(), level:attempt.kind==='assessment' && attempt.score!==null ? overallLevel(Number(attempt.score)) : null };
+  return { ...(admin?attempt:studentAttempt(attempt)), score:attempt.score===null?null:Number(attempt.score), objective_score:attempt.objective_score===null?null:Number(attempt.objective_score), questions:admin?attempt.questions:publicQuestions(attempt.questions), answers, files, project, review, codeChecks, securityEvents,
+    serverNow:new Date().toISOString(), lessonUrl:lessonBySlug(attempt.slug)?.url || '', level:attempt.kind==='assessment' && attempt.score!==null ? overallLevel(Number(attempt.score)) : null };
 }
 function writable(attempt) {
   if (attempt.status!=='active') fail(409,'This submission is already locked.');
@@ -142,11 +189,18 @@ export function createGrowthRouter(pool, config) {
       const active=(await client.query('SELECT id FROM growth_attempts WHERE user_id=$1 AND status=\'active\' AND deadline_at<=NOW()',[req.user.id])).rows;
       for(const row of active) await submit(client,await getAttempt(client,row.id,req.user,true));
       const p=await profile(client,req.user.id);
-      const history=(await client.query(`${attemptSelect} WHERE t.user_id=$1 ORDER BY t.started_at DESC`,[req.user.id])).rows.map(({questions:_q,...row})=>row);
+      const history=(await client.query(`${attemptSelect} WHERE t.user_id=$1 ORDER BY t.started_at DESC`,[req.user.id])).rows.map(studentAttempt);
       const scored=history.filter(a=>a.kind==='assessment' && a.status==='passed' && a.career_paths.includes(p.career_path));
       const best=scored.length?Math.max(...scored.map(a=>Number(a.score))):null;
       const completions=(await client.query('SELECT a.kind,count(*)::int AS count FROM growth_completions c JOIN growth_activities a ON a.id=c.activity_id WHERE c.user_id=$1 GROUP BY a.kind',[req.user.id])).rows;
-      return { careerPath:p.career_path||'', approved:p.status==='verified', assessmentPassed:best!==null, level:best===null?null:overallLevel(best), bestScore:best, history,completions,aiEnabled:false,runnerConfigured:config.runnerMode!=='disabled' };
+      const assessmentPassed = best !== null;
+      const placementPrep = await placementPrepPayload(client, req.user.id, p.career_path || '', assessmentPassed, attemptSelect);
+      return {
+        careerPath: p.career_path || '', approved: p.status === 'verified', assessmentPassed,
+        level: best === null ? null : overallLevel(best), bestScore: best, history, completions,
+        placementPrep, canRetakePlacement: assessmentPassed || (placementPrep?.canRetake ?? true),
+        aiEnabled: Boolean(process.env.GROQ_API_KEY), runnerConfigured: config.runnerMode !== 'disabled',
+      };
     });res.json(result);
   });
   router.get('/catalog',async(req,res)=>{
@@ -173,12 +227,32 @@ export function createGrowthRouter(pool, config) {
       if(existing) return attemptResponse(client,await getAttempt(client,existing.id,req.user,true));
       const pending=(await client.query('SELECT id FROM growth_attempts WHERE user_id=$1 AND activity_id=$2 AND status=\'pending-review\'',[req.user.id,item.id])).rows[0];
       if(pending) return attemptResponse(client,await getAttempt(client,pending.id,req.user));
-      if(item.kind==='assessment') {
-        const recent=await client.query('SELECT id FROM growth_attempts WHERE user_id=$1 AND activity_id=$2 AND submitted_at>NOW()-INTERVAL \'24 hours\'',[req.user.id,item.id]);
-        if(recent.rows.length) fail(409,'Assessment retakes are available 24 hours after your previous submission. Your history remains available.');
+      if (item.kind === 'assessment') {
+        const path = await ready(client, req.user.id);
+        if (!(await passedAssessment(client, req.user.id, path))) {
+          if (await hasSubmittedPlacement(client, req.user.id, path, attemptSelect)) {
+            const rem = await remediationStatus(client, req.user.id, path);
+            if (!rem.complete) {
+              fail(403, 'Pass the first milestone in each skill on the Learning lab, then retake placement.');
+            }
+          }
+        }
+        const recent = await client.query(
+          'SELECT id FROM growth_attempts WHERE user_id=$1 AND activity_id=$2 AND submitted_at>NOW()-INTERVAL \'24 hours\'',
+          [req.user.id, item.id]
+        );
+        if (recent.rows.length) fail(409, 'Assessment retakes are available 24 hours after your previous submission. Your history remains available.');
       }
-      const deadline=item.kind==='project'?null:new Date(Date.now()+item.duration_minutes*60000);
-      const {rows}=await client.query('INSERT INTO growth_attempts(user_id,activity_id,version,deadline_at) VALUES($1,$2,$3,$4) RETURNING id',[req.user.id,item.id,item.content_version,deadline]);
+      const deadline=item.kind==='assessment'?new Date(Date.now()+item.duration_minutes*60000):null;
+      let paper=null,coach={};
+      if(item.kind==='assessment'){
+        paper=await choosePlacementPaper(client,{userId:req.user.id,activityId:item.id,careerPath:await ready(client,req.user.id),fallbackQuestions:item.questions});
+      }
+      if(item.kind==='challenge'){
+        paper=await choosePaper(client,{userId:req.user.id,activityId:item.id,skillId:item.skill_id,fallbackQuestions:item.questions});
+        coach=await maybePersonalizeCoach(coachFromHistory({title:item.title,history:await recentConceptHistory(client,req.user.id,item.skill_id)}));
+      }
+      const {rows}=await client.query('INSERT INTO growth_attempts(user_id,activity_id,version,deadline_at,paper_questions,coach) VALUES($1,$2,$3,$4,$5,$6) RETURNING id',[req.user.id,item.id,item.content_version,deadline,paper?JSON.stringify(paper):null,JSON.stringify(coach)]);
       return attemptResponse(client,await getAttempt(client,rows[0].id,req.user));
     });res.json({attempt:result});
   });
