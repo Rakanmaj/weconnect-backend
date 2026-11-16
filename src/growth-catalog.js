@@ -1,3 +1,4 @@
+import { lessons } from './growth-lessons.js';
 // Curated starter content. These are real activities, not pre-awarded user results.
 const all = ['Frontend Developer','Backend Developer','Full-Stack Developer'];
 const web = ['Frontend Developer','Full-Stack Developer'];
@@ -5,6 +6,7 @@ const server = ['Backend Developer','Full-Stack Developer'];
 const mcq = (id,prompt,options,correctAnswer,points=10) => ({id,type:'mcq',prompt,options,correctAnswer,points,starterCode:'',rubric:'',tests:[]});
 const written = (id,prompt,rubric,points=20) => ({id,type:'written',prompt,points,options:[],correctAnswer:'',starterCode:'',rubric,tests:[]});
 const code = (id,prompt,tests,points=30) => ({id,type:'code',prompt,points,options:[],correctAnswer:'',starterCode:'// Read stdin and write the required result to stdout.\nconst fs = require("node:fs");\nconst input = fs.readFileSync(0, "utf8").trim();\n// Implement your solution below.\n',rubric:'Award 50% for correctness on the stated examples and edge cases, 25% for input validation, and 25% for clear, maintainable code. Syntax alone earns no correctness credit.',tests});
+const pseudocode = (id,prompt,rubric,points=30) => ({id,type:'code',prompt,points,options:[],correctAnswer:'',starterCode:'Pseudocode only (not executed). Use clear steps or informal code.',rubric,tests:[]});
 
 export const skillCatalog = [
   {slug:'javascript',name:'JavaScript',careerPaths:all,description:'Language fundamentals, asynchronous work and robust data transformations.'},
@@ -17,15 +19,12 @@ const assessmentQuestions = [
   mcq('password','How should an application store user passwords?',['Plain text','A salted password hash','Reversible Base64','In browser storage'],'A salted password hash'),
   mcq('sql','What prevents SQL injection when a query includes user input?',['String concatenation','Parameterized queries','Hiding the form','A longer password'],'Parameterized queries'),
   mcq('promise','Which construct handles a rejected promise in async code?',['try / catch around await','A CSS rule','JSON.stringify','A React key'],'try / catch around await'),
-  code('deduplicate','Read a JSON array of strings from stdin. Print a JSON array with duplicates removed, preserving first occurrence order. Reject non-array input with the output INVALID.',[
-    {name:'Duplicate values',input:'["a","b","a"]',output:'["a","b"]'},
-    {name:'Empty array',input:'[]',output:'[]'},
-    {name:'Invalid input',input:'{"a":1}',output:'INVALID'},
-  ]),
+  pseudocode('deduplicate','Write pseudocode that reads a JSON array of strings from standard input and prints a JSON array with duplicates removed while preserving first occurrence order. If the input is not a JSON array, print INVALID.',
+    'Award credit for: reading and parsing input; detecting non-array input and printing INVALID; deduplicating while keeping first-seen order (not just using a set without order); stating the output format. Same rubric for every student: correctness 50%, edge cases 25%, clarity 25%.'),
   written('design','Describe how you would validate a profile form and enforce ownership when saving it to an Express API.',
     'Award up to 10 points for client and server validation, 10 for session-based ownership (never trusting a supplied user ID), and 10 for useful errors and safe database writes.',30),
 ];
-export const assessmentCatalog = all.map(path=>({slug:`${path.replace(' Developer','').toLowerCase()}-assessment`,kind:'assessment',title:`${path} Assessment`,description:'A timed assessment of practical JavaScript, web security and application design. Multiple-choice answers are scored automatically. Coding and written answers are reviewed by an administrator.',careerPaths:[path],durationMinutes:60,passScore:70,questions:assessmentQuestions,requirements:'Answer all questions. Work is saved as you go. Time continues when this tab is closed. Assessment retakes are available after 24 hours.'}));
+export const assessmentCatalog = all.map(path=>({slug:`${path.replace(' Developer','').toLowerCase()}-assessment`,kind:'assessment',title:`${path} Assessment`,description:'A timed placement exam: multiple-choice is scored automatically; written and pseudocode answers are scored with the same rubric for every student.',careerPaths:[path],durationMinutes:60,passScore:70,questions:assessmentQuestions,requirements:'Answer all questions. Work is saved as you go. Time continues when this tab is closed. Assessment retakes are available after 24 hours.'}));
 const concepts = {
   javascript:[
     ['Array transformations','Which method creates a new array by transforming each element?',['map','push','pop','splice'],'map'],
@@ -76,13 +75,17 @@ const concepts = {
     ['Atomic operations','Which mechanism safely handles an insert that conflicts with a unique key?',['ON CONFLICT','String concatenation','A frontend delay','A larger text field'],'ON CONFLICT'],
   ],
 };
-export const challengeCatalog=skillCatalog.flatMap(skill=>concepts[skill.slug].map(([title,prompt,options,answer],index)=>({
-  slug:`${skill.slug}-${index+1}`,kind:'challenge',skillSlug:skill.slug,position:index+1,title:`${skill.name}: ${title}`,careerPaths:skill.careerPaths,
-  description:`Challenge ${index+1} of 10. Apply ${title.toLowerCase()} and explain your implementation choices.`,durationMinutes:30,passScore:70,
-  requirements:'Complete the knowledge check and provide practical evidence. Your explanation is reviewed before progression is awarded.',
-  questions:[mcq('knowledge',prompt,options,answer,40),skill.slug==='javascript'&&index===9?code('implementation',assessmentQuestions[4].prompt,assessmentQuestions[4].tests,60):written('application',`Give a concrete ${skill.name} example demonstrating ${title.toLowerCase()}. Include the implementation or query, explain an edge case, and describe how you would test it.`,
-    'Award 30 points for a correct example, 15 for a relevant edge case, and 15 for a meaningful test. Do not award credit for an unrelated or copied explanation.',60)],
-})));
+export const challengeCatalog=skillCatalog.flatMap(skill=>concepts[skill.slug].map(([title],index)=>{
+  const slug=`${skill.slug}-${index+1}`;
+  const lesson=lessons[slug];
+  return {
+    slug,kind:'challenge',skillSlug:skill.slug,position:index+1,title:`${skill.name}: ${title}`,careerPaths:skill.careerPaths,
+    description:`Challenge ${index+1} of 10. Study ${title.toLowerCase()}, then answer 10 questions. A retry uses a different set.`,
+    durationMinutes:30,passScore:60,
+    requirements:`Read the W3Schools lesson, then answer all 10 questions. 60% unlocks the next milestone. Below 60%, the next try is a different set of 10.\n${lesson.url}`,
+    questions:lesson.questions,
+  };
+}));
 export const projectCatalog=[
   ['accessible-profile','Accessible Profile Manager',web,'Build a responsive React profile editor with labeled fields, client validation, a loading state, an error state and a successful save state. Persist updates through an API. Include keyboard navigation and mobile screenshots.'],
   ['ticket-api','Support Ticket API',server,'Build an Express API to create, list, filter and update support tickets in PostgreSQL. Include parameterized SQL, pagination, server validation, authentication and owner-only updates. Document setup and test unauthorized requests.'],
@@ -105,5 +108,19 @@ export function growthCatalogSql() {
       UPDATE growth_activities SET published_version=1 WHERE id=activity;
     END IF; END $catalog$;`);
   lines.push("INSERT INTO schema_migrations(name) VALUES('004_growth_catalog') ON CONFLICT DO NOTHING;",'COMMIT;');
+  return lines.join('\n');
+}
+export function refreshChallengeLessonsSql() {
+  const lines=['BEGIN;'];
+  for (const activity of challengeCatalog) lines.push(`UPDATE growth_activity_versions v SET questions=${literal(JSON.stringify(activity.questions))}::jsonb, description=${literal(activity.description)}, requirements=${literal(activity.requirements)}, pass_score=${activity.passScore} FROM growth_activities act WHERE act.id=v.activity_id AND act.slug=${literal(activity.slug)} AND v.version=act.published_version;`);
+  lines.push('COMMIT;');
+  return lines.join('\n');
+}
+export function refreshAssessmentCatalogSql() {
+  const lines=['BEGIN;'];
+  for (const activity of assessmentCatalog) {
+    lines.push(`UPDATE growth_activity_versions v SET title=${literal(activity.title)}, description=${literal(activity.description)}, questions=${literal(JSON.stringify(activity.questions))}::jsonb, requirements=${literal(activity.requirements)}, pass_score=${activity.passScore} FROM growth_activities act WHERE act.id=v.activity_id AND act.slug=${literal(activity.slug)} AND v.version=act.published_version;`);
+  }
+  lines.push('COMMIT;');
   return lines.join('\n');
 }

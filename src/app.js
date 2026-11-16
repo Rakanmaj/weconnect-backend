@@ -9,6 +9,7 @@ import { createMailer } from './mail.js';
 import { rateLimit } from 'express-rate-limit';
 import { requireCompanyPermission } from './company-access.js';
 import { createGrowthRouter, createGrowthAdminRouter, createGrowthFileRouter } from './growth.js';
+import { createCompanyProjectRouter, createEngagementRouter } from './company-projects.js';
 
 export function createApp({ pool, config, logger = console, sendMail = createMailer(config) }) {
   const app = express();
@@ -45,6 +46,8 @@ export function createApp({ pool, config, logger = console, sendMail = createMai
   app.use('/api/growth', createGrowthRouter(pool, config));
   app.use('/api/admin/growth', createGrowthAdminRouter(pool));
   app.use('/api/growth-files', rateLimit({ windowMs: 15 * 60 * 1000, limit: 100, standardHeaders: 'draft-8', legacyHeaders: false }), createGrowthFileRouter(pool));
+  app.use('/api/company/projects', createCompanyProjectRouter(pool));
+  app.use('/api/engagements', createEngagementRouter(pool));
 
   // A server-side permission boundary for each portal; future APIs use these same middleware.
   for (const role of ["developer", "company", "admin"]) {

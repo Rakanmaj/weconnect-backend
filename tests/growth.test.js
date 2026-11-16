@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 import {createApp} from '../src/app.js';
 import {testDatabase} from './helpers/database.js';
 import {hashPassword} from '../src/passwords.js';
-import {growthCatalogSql} from '../src/growth-catalog.js';
+import {growthCatalogSql, refreshAssessmentCatalogSql, refreshChallengeLessonsSql} from '../src/growth-catalog.js';
 import {checkJavaScript,runJavaScript} from '../src/growth-grading.js';
 
 const origin='http://localhost:3000',password='TestGrowth2026!';
@@ -14,6 +14,15 @@ let fixture,app,admin,dev,other,company,devId,assessment,attemptId;
 const write=(agent,method,path,body={})=>agent[method]('/api'+path).set('Origin',origin).send(body);
 const data=email=>({role:'developer',email,password,confirmPassword:password,firstName:'Growth',lastName:'Tester',preferredRole:'Full-Stack Developer',location:'Amman',github:''});
 const q=(id='knowledge')=>({id,type:'mcq',prompt:'Which status means created?',points:100,options:['200','201'],correctAnswer:'201',starterCode:'',rubric:'',tests:[]});
+async function passMilestoneChallenge(agent,slug){
+  const a=(await write(agent,'post',`/growth/activities/${slug}/start`).expect(200)).body.attempt;
+  const stored=(await fixture.pool.query('SELECT paper_questions FROM growth_attempts WHERE id=$1',[a.id])).rows[0].paper_questions;
+  const key=Object.fromEntries(stored.map(q=>[q.id,q.correctAnswer]));
+  const answers=a.questions.map(q=>({questionId:q.id,answer:key[q.id]}));
+  await write(agent,'put',`/growth/attempts/${a.id}/answers`,{revision:0,answers}).expect(200);
+  const passed=(await write(agent,'post',`/growth/attempts/${a.id}/submit`).expect(200)).body.attempt;
+  assert.equal(passed.status,'passed');
+}
 async function createActivity(overrides={}){
   const body={kind:'assessment',slug:'test-'+crypto.randomUUID().slice(0,8),title:'Test Activity',description:'Integration assessment',careerPaths:['Full-Stack Developer'],durationMinutes:5,passScore:70,questions:[q()],requirements:'Answer the questions.',...overrides};
   const response=await write(admin,'post','/admin/growth/content',body).expect(201);
@@ -21,8 +30,12 @@ async function createActivity(overrides={}){
   return response.body.item;
 }
 before(async()=>{
-  fixture=await testDatabase();await fixture.db.exec(await readFile(new URL('../database/003_developer_growth.sql',import.meta.url),'utf8'));await fixture.db.exec(growthCatalogSql());
+  process.env.NODE_TEST_CONTEXT='1';
+  fixture=await testDatabase();await fixture.db.exec(await readFile(new URL('../database/003_developer_growth.sql',import.meta.url),'utf8'));await fixture.db.exec(growthCatalogSql());await fixture.db.exec(refreshChallengeLessonsSql());await fixture.db.exec(refreshAssessmentCatalogSql());
   await fixture.db.exec(await readFile(new URL('../database/005_exam_integrity.sql',import.meta.url),'utf8'));
+  await fixture.db.exec(await readFile(new URL('../database/006_exam_bank.sql',import.meta.url),'utf8'));
+  await fixture.db.exec(await readFile(new URL('../database/007_milestone_coaching.sql',import.meta.url),'utf8'));
+  await fixture.db.exec(await readFile(new URL('../database/009_question_results.sql',import.meta.url),'utf8'));
   app=createApp({pool:fixture.pool,config,logger:{error(){}}});
   admin=request.agent(app);dev=request.agent(app);other=request.agent(app);company=request.agent(app);
   await fixture.pool.query("INSERT INTO users(role,email,password_hash,first_name) VALUES('admin','reviewer@example.com',$1,'Reviewer')",[await hashPassword(password)]);
@@ -83,24 +96,38 @@ test('syntax checks never execute user code and real sandbox test evidence is sa
   assert.equal(r.body.execution.available,true);assert.equal(r.body.execution.engine,'local-quickjs');
   const saved=(await dev.get(`/api/growth/attempts/${attemptId}`)).body.attempt;assert.equal(saved.codeChecks.length,1);
 });
-test('submissions lock answers, preserve evidence and enter the real administrator queue',async()=>{
-  const answers=assessment.questions.map(q=>({questionId:q.id,answer:q.type==='mcq'?['201','A salted password hash','Parameterized queries','try / catch around await'][assessment.questions.indexOf(q)]:'A meaningful implementation and explanation.'}));
+test('submissions lock answers and publish a placement score without an administrator',async()=>{
+  const pseudo='READ stdin text\nPARSE JSON\nIF parse fails OR value is not an array: PRINT "INVALID"\nELSE walk items in order, append to output only on first sighting of each string\nPRINT JSON array of results';
+  const written='Validate the profile form on the client and again on the server. Enforce ownership from the session and never trust a supplied user id. Return useful errors and use safe parameterized database writes.';
+  const paper=(await fixture.pool.query('SELECT paper_questions FROM growth_attempts WHERE id=$1',[attemptId])).rows[0].paper_questions;
+  const mcqKey=Object.fromEntries(paper.map(q=>[q.id,q.correctAnswer]));
+  const answers=assessment.questions.map(q=>({questionId:q.id,answer:q.type==='mcq'?mcqKey[q.id]:q.type==='code'?pseudo:written}));
   await write(dev,'put',`/growth/attempts/${attemptId}/answers`,{revision:1,answers}).expect(200);
   const submitted=(await write(dev,'post',`/growth/attempts/${attemptId}/submit`).expect(200)).body.attempt;
-  assert.equal(submitted.status,'pending-review');assert.equal(submitted.score,null);
+  assert.equal(submitted.status,'passed');assert.ok(Number(submitted.score)>=70);assert.match(submitted.feedback,/scored|%/);
+  assert.equal(submitted.question_results.length,submitted.questions.length);
+  assert.ok(submitted.question_results.every(item=>typeof item.note==='string'&&item.note.length>0));
   await write(dev,'post',`/growth/attempts/${attemptId}/submit`).expect(200);
   await write(dev,'put',`/growth/attempts/${attemptId}/answers`,{revision:2,answers:[]}).expect(409);
-  assert.ok((await admin.get('/api/admin/growth/reviews').expect(200)).body.items.some(a=>a.id===attemptId&&a.developer_email==='growth@example.com'));
-});
-test('manual grading validates points and publishes immutable results without duplicate credit',async()=>{
-  await write(admin,'post',`/admin/growth/reviews/${attemptId}`,{feedback:'Reviewed carefully',grades:[{questionId:'deduplicate',points:100},{questionId:'design',points:30}]}).expect(400);
-  const r=(await write(admin,'post',`/admin/growth/reviews/${attemptId}`,{feedback:'Correct implementation with clear edge cases.',grades:[{questionId:'deduplicate',points:30},{questionId:'design',points:30}]}).expect(200)).body.attempt;
-  assert.equal(r.status,'passed');assert.equal(Number(r.score),100);assert.equal(r.level,4);
-  await write(admin,'post',`/admin/growth/reviews/${attemptId}`,{feedback:'Changed result',grades:[]}).expect(409);
-  await write(dev,'post',`/growth/attempts/${attemptId}/submit`).expect(200);
+  assert.equal((await admin.get('/api/admin/growth/reviews').expect(200)).body.items.some(a=>a.id===attemptId),false);
   assert.equal((await fixture.pool.query('SELECT count(*)::int AS n FROM growth_completions WHERE user_id=$1 AND activity_id=$2',[devId,assessment.id])).rows[0].n,1);
   assert.equal((await dev.get('/api/growth/overview')).body.assessmentPassed,true);
   await write(dev,'post',`/growth/activities/${assessment.id}/start`).expect(409);
+});
+test('manual grading validates points and publishes immutable results without duplicate credit',async()=>{
+  const content=await createActivity({questions:[
+    {id:'deduplicate',type:'code',prompt:'Remove duplicates from the array.',points:30,options:[],correctAnswer:'',starterCode:'',rubric:'Correctness and validation.',tests:[]},
+    {id:'design',type:'written',prompt:'Describe ownership checks.',points:30,options:[],correctAnswer:'',starterCode:'',rubric:'Session ownership.',tests:[]},
+  ]});
+  const started=(await write(dev,'post',`/growth/activities/${content.id}/start`).expect(200)).body.attempt;
+  await write(dev,'put',`/growth/attempts/${started.id}/answers`,{revision:0,answers:[{questionId:'deduplicate',answer:'const values = [];'},{questionId:'design',answer:'Check the session owner before saving the profile.'}]}).expect(200);
+  const stopped=(await write(admin,'post',`/admin/growth/reviews/${started.id}/stop`,{reason:'Hold this paper for a manual score check.'}).expect(200)).body.attempt;
+  assert.equal(stopped.status,'pending-review');assert.equal(stopped.score,null);
+  await write(admin,'post',`/admin/growth/reviews/${started.id}`,{feedback:'Reviewed carefully',securityDecision:'allow-grading',grades:[{questionId:'deduplicate',points:100},{questionId:'design',points:30}]}).expect(400);
+  const r=(await write(admin,'post',`/admin/growth/reviews/${started.id}`,{feedback:'Correct implementation with clear edge cases.',securityDecision:'allow-grading',grades:[{questionId:'deduplicate',points:30},{questionId:'design',points:30}]}).expect(200)).body.attempt;
+  assert.equal(r.status,'passed');assert.equal(Number(r.score),100);assert.equal(r.level,4);
+  await write(admin,'post',`/admin/growth/reviews/${started.id}`,{feedback:'Changed result',securityDecision:'allow-grading',grades:[]}).expect(409);
+  assert.equal((await fixture.pool.query('SELECT count(*)::int AS n FROM growth_completions WHERE user_id=$1 AND activity_id=$2',[devId,content.id])).rows[0].n,1);
 });
 test('server deadlines automatically submit saved answers and forbid late writes',async()=>{
   const content=await createActivity();const a=(await write(dev,'post',`/growth/activities/${content.id}/start`).expect(200)).body.attempt;
@@ -113,12 +140,20 @@ test('server deadlines automatically submit saved answers and forbid late writes
 test('challenge prerequisites enforce order, failed attempts can retry and skill progress counts once',async()=>{
   await write(dev,'post','/growth/activities/javascript-2/start').expect(403);
   const a=(await write(dev,'post','/growth/activities/javascript-1/start').expect(200)).body.attempt;
-  await write(dev,'post',`/growth/attempts/${a.id}/submit`).expect(200);
-  await write(admin,'post',`/admin/growth/reviews/${a.id}`,{feedback:'Please provide an example and test.',grades:[{questionId:'application',points:0}]}).expect(200);
+  assert.equal(a.questions.length,10);assert.match(a.lessonUrl,/w3schools\.com/);assert.ok(a.coach.hints.length);
+  const missed=(await write(dev,'post',`/growth/attempts/${a.id}/submit`).expect(200)).body.attempt;
+  assert.equal(missed.status,'failed');assert.ok(Number(missed.score)<60);
   const retry=(await write(dev,'post','/growth/activities/javascript-1/start').expect(200)).body.attempt;assert.notEqual(a.id,retry.id);
-  await write(dev,'put',`/growth/attempts/${retry.id}/answers`,{revision:0,answers:[{questionId:'knowledge',answer:'map'},{questionId:'application',answer:'const doubled = values.map(x => x * 2); empty arrays remain empty; test [1,2] -> [2,4].'}]}).expect(200);
-  await write(dev,'post',`/growth/attempts/${retry.id}/submit`).expect(200);
-  await write(admin,'post',`/admin/growth/reviews/${retry.id}`,{feedback:'Correct map example and edge case.',grades:[{questionId:'application',points:60}]}).expect(200);
+  assert.equal(retry.questions.length,10);
+  const firstIds=new Set(a.questions.map(q=>q.id));
+  assert.ok(retry.questions.every(q=>!firstIds.has(q.id)));
+  assert.ok(retry.coach.hints.some(hint=>/last try/i.test(hint)));
+  const stored=(await fixture.pool.query('SELECT paper_questions FROM growth_attempts WHERE id=$1',[retry.id])).rows[0].paper_questions;
+  const key=Object.fromEntries(stored.map(q=>[q.id,q.correctAnswer]));
+  const answers=retry.questions.map(q=>({questionId:q.id,answer:key[q.id]}));
+  await write(dev,'put',`/growth/attempts/${retry.id}/answers`,{revision:0,answers}).expect(200);
+  const passed=(await write(dev,'post',`/growth/attempts/${retry.id}/submit`).expect(200)).body.attempt;
+  assert.equal(passed.status,'passed');assert.ok(Number(passed.score)>=60);
   await write(dev,'post','/growth/activities/javascript-2/start').expect(200);
   const js=(await dev.get('/api/growth/skills').expect(200)).body.items.find(s=>s.slug==='javascript');assert.equal(js.completed,1);assert.equal(js.level,'Level 1');
 });
@@ -199,4 +234,35 @@ test('duplicate focus signals count once and an administrator can stop an active
   const stopped=(await write(admin,'post',`/admin/growth/reviews/${a.id}/stop`,{reason:'Instructor requested a supervised review.'}).expect(200)).body.attempt;
   assert.ok(stopped.security_stopped_at);assert.equal(stopped.status,'pending-review');assert.equal(stopped.securityEvents[0].kind,'manual-stop');
   const final=(await write(admin,'post',`/admin/growth/reviews/${a.id}`,{feedback:'Reviewed signals and chose to grade the saved answers.',securityDecision:'allow-grading',grades:[]}).expect(200)).body.attempt;assert.equal(final.status,'failed');
+});
+test('failed placement opens milestone-1 prep and blocks retake until every path skill is passed',async()=>{
+  await write(admin,'post',`/admin/growth/content/${assessment.id}/publish`,{version:2,archive:false}).expect(200);
+  const prep=request.agent(app);
+  const prepId=(await write(prep,'post','/auth/register',data(`prep-path-${crypto.randomUUID().slice(0,8)}@example.com`)).expect(201)).body.user.id;
+  await fixture.pool.query("INSERT INTO account_verifications(user_id,status) VALUES($1,'verified') ON CONFLICT(user_id) DO UPDATE SET status='verified'",[prepId]);
+  await fixture.pool.query("UPDATE developer_profiles SET career_path='Full-Stack Developer' WHERE user_id=$1",[prepId]);
+  await write(prep,'post','/growth/activities/javascript-1/start').expect(403);
+  const failed=(await write(prep,'post','/growth/activities/full-stack-assessment/start').expect(200)).body.attempt;
+  const wrong=failed.questions.map(q=>({questionId:q.id,answer:q.options?.[0]||'wrong'}));
+  await write(prep,'put',`/growth/attempts/${failed.id}/answers`,{revision:0,answers:wrong}).expect(200);
+  const submitted=(await write(prep,'post',`/growth/attempts/${failed.id}/submit`).expect(200)).body.attempt;
+  assert.equal(submitted.status,'failed');
+  const overview=(await prep.get('/api/growth/overview').expect(200)).body;
+  assert.equal(overview.assessmentPassed,false);
+  assert.equal(overview.placementPrep.attempted,true);
+  assert.equal(overview.placementPrep.complete,false);
+  assert.ok(overview.placementPrep.total>=4);
+  for (const slug of ['javascript','react','node','postgresql']) assert.ok(overview.placementPrep.skills.some(s=>s.slug===slug));
+  assert.equal(overview.canRetakePlacement,false);
+  await write(prep,'post','/growth/activities/javascript-1/start').expect(200);
+  await write(prep,'post','/growth/activities/javascript-2/start').expect(403);
+  await fixture.pool.query("UPDATE growth_attempts SET submitted_at=NOW()-INTERVAL '25 hours' WHERE id=$1",[failed.id]);
+  await write(prep,'post','/growth/activities/full-stack-assessment/start').expect(403);
+  for (const row of overview.placementPrep.skills) {
+    if (row.milestoneSlug) await passMilestoneChallenge(prep,row.milestoneSlug);
+  }
+  const ready=(await prep.get('/api/growth/overview').expect(200)).body;
+  assert.equal(ready.placementPrep.complete,true);
+  assert.equal(ready.canRetakePlacement,true);
+  await write(prep,'post','/growth/activities/full-stack-assessment/start').expect(200);
 });
