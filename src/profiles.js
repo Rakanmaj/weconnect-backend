@@ -6,6 +6,7 @@ import { transaction } from './db.js';
 import { fail, validId, validate } from './errors.js';
 import { careerSchema, companySchema, developerSchema, reviewSchema } from './profile-validation.js';
 import { profileOwnerId, requireCompanyPermission, resolveCompanyWorkspace } from './company-access.js';
+import { overallLevel } from './growth-grading.js';
 
 function profileAccess(req, res, next) {
   if (req.user.role === 'company') return requireCompanyPermission('company:manage')(req, res, next);
@@ -228,6 +229,36 @@ export function createReviewRouter(pool) {
       return verification(client, req.params.id);
     });
     res.json({ verification: result });
+  });
+  return router;
+}
+
+export function createAdminDevelopersRouter(pool) {
+  const router = Router();
+  router.use(authenticationRequired(pool), roleRequired('admin'));
+  router.get('/', async (_req, res) => {
+    const { rows } = await pool.query(`SELECT u.id, u.email,
+      trim(concat(u.first_name, ' ', u.last_name)) AS name,
+      coalesce(nullif(trim(d.preferred_position), ''), nullif(trim(d.career_path), ''), 'Not set') AS role,
+      coalesce(nullif(trim(d.location), ''), '—') AS location,
+      coalesce(v.status, 'draft') AS status,
+      u.email_verified_at IS NOT NULL AS "emailVerified",
+      (SELECT count(*)::int FROM growth_completions gc JOIN growth_activities ga ON ga.id = gc.activity_id
+        WHERE gc.user_id = u.id AND ga.kind = 'challenge') AS "challengesPassed",
+      (SELECT max(t.score) FROM growth_attempts t JOIN growth_activities a ON a.id = t.activity_id
+        WHERE t.user_id = u.id AND a.kind = 'assessment' AND t.status = 'passed') AS "bestAssessmentScore"
+      FROM public.users u
+      LEFT JOIN public.developer_profiles d ON d.user_id = u.id
+      LEFT JOIN public.account_verifications v ON v.user_id = u.id
+      WHERE u.role = 'developer' AND u.account_status = 'active'
+      ORDER BY u.created_at DESC LIMIT 1000`);
+    res.json({
+      items: rows.map(row => ({
+        ...row,
+        overallLevel: row.bestAssessmentScore == null ? null : overallLevel(Number(row.bestAssessmentScore)),
+      })),
+      total: rows.length,
+    });
   });
   return router;
 }

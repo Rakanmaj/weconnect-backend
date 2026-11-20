@@ -2,7 +2,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { authenticationRequired, createAuthRouter, roleRequired } from "./auth.js";
-import { createFileRouter, createProfileRouter, createReviewRouter } from './profiles.js';
+import { createAdminDevelopersRouter, createFileRouter, createProfileRouter, createReviewRouter } from './profiles.js';
 import { createRecoveryRouter } from './recovery.js';
 import { createTeamRouter } from './team.js';
 import { createMailer } from './mail.js';
@@ -42,6 +42,7 @@ export function createApp({ pool, config, logger = console, sendMail = createMai
   app.use('/api/profile', createProfileRouter(pool));
   app.use('/api/files', rateLimit({ windowMs: 15 * 60 * 1000, limit: 100, standardHeaders: 'draft-8', legacyHeaders: false }), createFileRouter(pool));
   app.use('/api/admin/verifications', createReviewRouter(pool));
+  app.use('/api/admin/developers', createAdminDevelopersRouter(pool));
   app.use('/api/team', createTeamRouter(pool, config, sendMail));
   app.use('/api/growth', createGrowthRouter(pool, config));
   app.use('/api/admin/growth', createGrowthAdminRouter(pool));
