@@ -165,11 +165,25 @@ function writable(attempt) {
   if (attempt.status!=='active') fail(409,'This submission is already locked.');
   if (attempt.deadline_at && new Date(attempt.deadline_at).getTime()<=Date.now()) fail(409,'Time has ended. Open the result to view your saved submission.');
 }
+function effectiveProjectRequirements(data) {
+  const req = String(data.requirements ?? '').trim();
+  const desc = String(data.description ?? '').trim();
+  if (req.length >= 10) return req;
+  if (desc.length >= 10) return desc;
+  return req.length ? req : desc;
+}
+function normalizeProjectContent(data) {
+  if (data.kind !== 'project') return data;
+  const requirements = effectiveProjectRequirements(data);
+  return requirements === data.requirements ? data : { ...data, requirements };
+}
 function validateQuestions(data, publishing = false) {
   if (data.kind==='challenge' && !data.skillId) fail(400,'Choose a skill for this challenge.');
   if (data.kind==='project' && data.questions.length) fail(400,'Internal projects use requirements and submission evidence, not assessment questions.');
   if (publishing && data.kind!=='project' && !data.questions.length) fail(400,'Add at least one question before publishing.');
-  if (publishing && data.kind==='project' && data.requirements.trim().length<10) fail(400,'Add the project requirements before publishing.');
+  if (publishing && data.kind==='project' && effectiveProjectRequirements(data).length < 10) {
+    fail(400, 'Add project requirements before publishing (or write at least 10 characters in Description — we use that when requirements are empty).');
+  }
   if (new Set(data.questions.map(q=>q.id)).size!==data.questions.length) fail(400,'Question IDs must be unique.');
   for (const q of data.questions) {
     if (q.type==='mcq' && (q.options.length<2 || new Set(q.options).size!==q.options.length || !q.options.includes(q.correctAnswer))) fail(400,'Each multiple-choice question needs distinct options and a correct option.');
@@ -338,7 +352,7 @@ export function createGrowthAdminRouter(pool) {
   });
   router.get('/content/:id',async(req,res)=>res.json({item:displayContent(await content(pool,req.params.id,true),true)}));
   router.post('/content',async(req,res)=>{
-    const d=validate(contentSchema,req.body);validateQuestions(d);
+    const d=normalizeProjectContent(validate(contentSchema,req.body));validateQuestions(d);
     try {const result=await transaction(pool,async client=>{
       if(d.skillId && !(await client.query('SELECT id FROM growth_skills WHERE id=$1',[d.skillId])).rows.length) fail(400,'Choose an existing skill.');
       const {rows}=await client.query('INSERT INTO growth_activities(slug,kind,skill_id,position) VALUES($1,$2,$3,$4) RETURNING id',[d.slug,d.kind,d.skillId,d.position]);
@@ -346,7 +360,7 @@ export function createGrowthAdminRouter(pool) {
     });res.status(201).json({item:result});} catch(error){if(error.code==='23505')fail(409,'This activity slug already exists.');throw error;}
   });
   router.put('/content/:id',async(req,res)=>{
-    const d=validate(contentSchema,req.body);validateQuestions(d);
+    const d=normalizeProjectContent(validate(contentSchema,req.body));validateQuestions(d);
     const item=await transaction(pool,async client=>{
       await client.query('SELECT id FROM growth_activities WHERE id::text=$1 FOR UPDATE',[req.params.id]);
       const old=await content(client,req.params.id,true);
@@ -360,7 +374,7 @@ export function createGrowthAdminRouter(pool) {
     const item=await transaction(pool,async client=>{
       await client.query('SELECT id FROM growth_activities WHERE id::text=$1 FOR UPDATE',[req.params.id]);
       const a=await content(client,req.params.id,true);if(a.content_version!==d.version)fail(409,'Reload the latest content version.');
-      validateQuestions({kind:a.kind,skillId:a.skill_id,questions:a.questions,requirements:a.requirements},!d.archive);
+      validateQuestions({kind:a.kind,skillId:a.skill_id,questions:a.questions,requirements:a.requirements,description:a.description},!d.archive);
       if(!d.archive && a.skill_id && !(await client.query('SELECT id FROM growth_skills WHERE id=$1 AND status=\'published\'',[a.skill_id])).rows.length)fail(400,'Publish this challenge’s skill first.');
       await client.query('UPDATE growth_activity_versions SET status=$3 WHERE activity_id=$1 AND version=$2',[a.id,d.version,d.archive?'archived':'published']);
       await client.query('UPDATE growth_activities SET published_version=$2 WHERE id=$1',[a.id,d.archive?null:d.version]);
